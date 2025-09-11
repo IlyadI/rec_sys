@@ -2,9 +2,11 @@
  * script.js
  * ----------
  * UI + content-based рекомендации с переключателем метрики (Cosine / Jaccard).
- * Если выбрана Cosine — для топ-2 фильмов печатаем значение cos similarity в скобках.
+ * Всегда выводим ТОП-5 и показываем значения сходства в скобках.
  * Зависит от data.js: movies, ratings, loadData()
  */
+
+const TOP_N = 5;
 
 /* Канонический список 18 жанров (как в data.js, без 'unknown') */
 const GENRES_18 = [
@@ -63,7 +65,7 @@ function jaccardSimilarity(a, b) {
   for (let i = 0; i < a.length; i++) {
     const ai = a[i];
     const bi = b[i];
-    dot += ai & bi;   // т.к. 0/1, побитовое И эквивалентно умножению
+    dot += ai & bi;   // 0/1: побитовое И = умножение
     sumA += ai;
     sumB += bi;
   }
@@ -76,6 +78,16 @@ function jaccardSimilarity(a, b) {
 function getSelectedMetric() {
   const el = document.querySelector('input[name="metric"]:checked');
   return el ? el.value : 'cosine';
+}
+
+/** Красивое имя метрики для выдачи */
+function metricLabel(metric) {
+  return metric === 'jaccard' ? 'Jaccard' : 'Cosine';
+}
+
+/** Формат значения сходства: 3 знака после запятой */
+function fmt(score) {
+  return Number.isFinite(score) ? score.toFixed(3) : '0.000';
 }
 
 window.onload = (async function () {
@@ -114,7 +126,8 @@ function populateMoviesDropdown() {
 
 /**
  * Рекомендации с выбранной метрикой.
- * Если метрика "cosine" — у топ-2 выводим значения cos в скобках: Title (cos: 0.873)
+ * Всегда печатаем TOP_N фильмов и показываем значения сходства в скобках:
+ * Title (0.873), Title (0.812), ...
  */
 function getRecommendations() {
   const resultEl = document.getElementById('result');
@@ -158,23 +171,17 @@ function getRecommendations() {
     return a.title.localeCompare(b.title, undefined, { sensitivity: 'base' });
   });
 
-  const topN = scoredMovies.slice(0, 2);
+  const topN = scoredMovies.slice(0, TOP_N);
 
   if (topN.length === 0) {
     resultEl.innerText = `We couldn't find any similar titles to "${likedMovie.title}". Try another movie.`;
   } else {
-    // Формируем вывод
-    let listText;
-    if (metric === 'cosine') {
-      // Печатаем значения cosine similarity c тремя знаками после запятой
-      listText = topN
-        .map((x) => `${x.title} (cos: ${x.score.toFixed(3)})`)
-        .join(', ');
-    } else {
-      // Жаккар — оставим просто названия (можно тоже показать score, если захочешь)
-      listText = topN.map((x) => x.title).join(', ');
-    }
+    const listText = topN
+      .map((x) => `${x.title} (${fmt(x.score)})`)
+      .join(', ');
 
-    resultEl.innerText = `Because you liked "${likedMovie.title}", we recommend: ${listText}`;
+    resultEl.innerText =
+      `Because you liked "${likedMovie.title}", we recommend (${metricLabel(metric)}): ` +
+      listText;
   }
 }
