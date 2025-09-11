@@ -27,6 +27,19 @@
         </button>
       </div>
 
+      <!-- Metric toggle -->
+      <fieldset class="metric-group" aria-label="Similarity metric">
+        <legend>Similarity metric</legend>
+        <label class="metric-option">
+          <input type="radio" name="metric" value="cosine" checked />
+          Cosine
+        </label>
+        <label class="metric-option">
+          <input type="radio" name="metric" value="jaccard" />
+          Jaccard
+        </label>
+      </fieldset>
+
       <div id="result-box" role="status" aria-live="polite">
         <p id="result">Loading data…</p>
       </div>
