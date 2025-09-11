@@ -39,7 +39,6 @@ async function loadData() {
     if (target) {
       target.innerText = `Error loading data: ${err.message}`;
     }
-    // Re-throw so callers can decide how to handle if needed
     throw err;
   }
 }
@@ -58,7 +57,6 @@ async function loadData() {
  *   the last 19 fields but ignore index 0 (unknown) when building the genre list.
  */
 function parseItemData(text) {
-  // The 18 named genres per spec (Action → Western), skipping 'unknown'
   const GENRES_18 = [
     'Action', 'Adventure', 'Animation', "Children's", 'Comedy', 'Crime',
     'Documentary', 'Drama', 'Fantasy', 'Film-Noir', 'Horror', 'Musical',
@@ -71,19 +69,14 @@ function parseItemData(text) {
   for (const line of lines) {
     if (!line.trim()) continue;
 
-    // Split by pipe: id|title|release date|video release date|IMDb URL|[19 genre flags...]
     const parts = line.split('|');
-
     const idRaw = parts[0];
     const titleRaw = parts[1];
-
-    // Defensive checks
     if (typeof idRaw === 'undefined' || typeof titleRaw === 'undefined') continue;
 
     const id = Number.parseInt(idRaw, 10);
     const title = titleRaw.trim();
 
-    // The last 19 fields are binary flags; skip the first (unknown), map 1..18 to our 18 genre names
     const flagsStartIndex = parts.length - 19;
     if (flagsStartIndex < 0) continue; // malformed line
 
@@ -91,7 +84,6 @@ function parseItemData(text) {
     for (let i = 0; i < 19; i++) {
       const flag = parts[flagsStartIndex + i];
       if (flag === '1') {
-        // i === 0 corresponds to 'unknown' (ignored);
         if (i > 0) {
           const gName = GENRES_18[i - 1];
           if (gName) genres.push(gName);
