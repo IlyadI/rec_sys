@@ -1,0 +1,110 @@
+/* Base layout */
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background: #f4f7f6;               /* Light, neutral background */
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol",
+    sans-serif;
+  color: #1f2937;
+  display: grid;
+  place-items: center;                /* Center everything vertically & horizontally */
+}
+
+/* Container */
+.container {
+  width: min(860px, 92vw);
+  background: #ffffff;
+  border-radius: 16px;                /* Rounded corners */
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.08); /* Subtle elevation */
+  padding: 28px;
+}
+
+/* Headings & text */
+h1 {
+  margin: 0 0 8px;
+  font-size: 1.8rem;
+  line-height: 1.2;
+}
+
+.instructions {
+  margin: 0 0 18px;
+  color: #4b5563;
+}
+
+/* Controls */
+.controls {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 18px;
+}
+
+#movie-select {
+  flex: 1 1 420px;
+  min-width: 260px;
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  font-size: 1rem;
+  background: #fff;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+#movie-select:focus {
+  border-color: #3b82f6;
+}
+
+/* Button */
+#go-btn {
+  flex: 0 0 auto;
+  padding: 10px 16px;
+  border: none;
+  border-radius: 10px;
+  font-size: 1rem;
+  cursor: pointer;
+  background: #2563eb;       /* Inviting blue */
+  color: #ffffff;             /* White text */
+  transition: background 0.15s ease, transform 0.02s ease;
+}
+
+#go-btn:hover {
+  background: #1d4ed8;        /* Slightly darker on hover */
+}
+
+#go-btn:active {
+  transform: translateY(1px);
+}
+
+/* Result area */
+#result-box {
+  background: #f9fafb;        /* Light background to separate from controls */
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 16px;
+}
+
+#result {
+  margin: 0;
+  font-weight: 700;            /* Bold, easy to read */
+  color: #111827;
+}
+
+/* A11y helpers */
+.visually-hidden {
+  position: absolute !important;
+  height: 1px; width: 1px;
+  overflow: hidden;
+  clip: rect(1px, 1px, 1px, 1px);
+  white-space: nowrap; /* added line */
+}
