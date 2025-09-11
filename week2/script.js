@@ -1,45 +1,109 @@
 /**
  * script.js
  * ----------
- * Handles UI initialization and content-based recommendation logic.
- * Depends on globals & functions from data.js: movies, ratings, loadData()
+ * UI + content-based рекомендации с переключателем метрики (Cosine / Jaccard).
+ * Если выбрана Cosine — для топ-2 фильмов печатаем значение cos similarity в скобках.
+ * Зависит от data.js: movies, ratings, loadData()
  */
+
+/* Канонический список 18 жанров (как в data.js, без 'unknown') */
+const GENRES_18 = [
+  'Action', 'Adventure', 'Animation', "Children's", 'Comedy', 'Crime',
+  'Documentary', 'Drama', 'Fantasy', 'Film-Noir', 'Horror', 'Musical',
+  'Mystery', 'Romance', 'Sci-Fi', 'Thriller', 'War', 'Western'
+];
+
+/* Быстрый доступ жанр -> индекс */
+const GENRE_TO_IDX = Object.fromEntries(GENRES_18.map((g, i) => [g, i]));
+
+/**
+ * Преобразуем список жанров фильма в бинарный вектор длины 18.
+ * 1 — жанр присутствует, 0 — нет.
+ */
+function toGenreVector(genres) {
+  const v = new Array(GENRES_18.length).fill(0);
+  if (!Array.isArray(genres)) return v;
+  for (const g of genres) {
+    const idx = GENRE_TO_IDX[g];
+    if (idx != null) v[idx] = 1;
+  }
+  return v;
+}
+
+/**
+ * Косинусное сходство для бинарных векторов одинаковой длины.
+ * cos(A,B) = (A·B) / (||A|| * ||B||)
+ * Для нулевых векторов возвращаем 0.
+ */
+function cosineSimilarity(a, b) {
+  let dot = 0;
+  let na = 0;
+  let nb = 0;
+  for (let i = 0; i < a.length; i++) {
+    const ai = a[i];
+    const bi = b[i];
+    dot += ai * bi;
+    na += ai * ai;
+    nb += bi * bi;
+  }
+  if (na === 0 || nb === 0) return 0;
+  return dot / (Math.sqrt(na) * Math.sqrt(nb));
+}
+
+/**
+ * Жаккар для бинарных векторов.
+ * J(A,B) = |A ∩ B| / |A ∪ B|
+ * Здесь |A ∩ B| = dot (т.к. бинарные векторы),
+ * |A| = сумма единиц в A, |B| = сумма единиц в B, |A ∪ B| = |A| + |B| − dot
+ */
+function jaccardSimilarity(a, b) {
+  let dot = 0;
+  let sumA = 0;
+  let sumB = 0;
+  for (let i = 0; i < a.length; i++) {
+    const ai = a[i];
+    const bi = b[i];
+    dot += ai & bi;   // т.к. 0/1, побитовое И эквивалентно умножению
+    sumA += ai;
+    sumB += bi;
+  }
+  const union = sumA + sumB - dot;
+  if (union === 0) return 0;
+  return dot / union;
+}
+
+/** Получить выбранную метрику из радио-кнопок */
+function getSelectedMetric() {
+  const el = document.querySelector('input[name="metric"]:checked');
+  return el ? el.value : 'cosine';
+}
 
 window.onload = (async function () {
   const status = document.getElementById('result');
   if (status) status.innerText = 'Loading data…';
 
   try {
-    // 1) Load data from local files (via data.js)
-    await loadData();
-
-    // 2) Populate UI
-    populateMoviesDropdown();
-
-    // 3) Update status
+    await loadData();               // 1) Загружаем данные
+    populateMoviesDropdown();       // 2) Заполняем селект
     if (status) status.innerText = 'Data loaded. Please select a movie.';
   } catch (e) {
-    // loadData already wrote an error to #result, nothing else to do
+    // Ошибка уже показана в loadData()
   }
 })();
 
 /**
- * populateMoviesDropdown
- * Sorts movies alphabetically and fills the <select> with options.
+ * Заполняем выпадающий список фильмами (по алфавиту).
  */
 function populateMoviesDropdown() {
   const select = document.getElementById('movie-select');
   if (!select) return;
 
-  // Clear existing
   select.innerHTML = '';
 
-  // Sort by title (ascending, case-insensitive)
   const sorted = [...movies].sort((a, b) =>
     a.title.localeCompare(b.title, undefined, { sensitivity: 'base' })
   );
 
-  // Create <option> nodes
   for (const m of sorted) {
     const opt = document.createElement('option');
     opt.value = String(m.id);
@@ -49,25 +113,14 @@ function populateMoviesDropdown() {
 }
 
 /**
- * getRecommendations
- * Main content-based filtering using Jaccard similarity over genre sets.
- *
- * Steps (per spec):
- * 1) Read selected movie id
- * 2) Find likedMovie
- * 3) Prepare genre Set and candidate list
- * 4) Score candidates by Jaccard Index
- * 5) Sort by score desc
- * 6) Take top 2
- * 7) Display message
+ * Рекомендации с выбранной метрикой.
+ * Если метрика "cosine" — у топ-2 выводим значения cos в скобках: Title (cos: 0.873)
  */
 function getRecommendations() {
   const resultEl = document.getElementById('result');
   const select = document.getElementById('movie-select');
-
   if (!select || !resultEl) return;
 
-  // Step 1: get user selection
   const selectedVal = select.value;
   if (!selectedVal) {
     resultEl.innerText = 'Please choose a movie first.';
@@ -75,50 +128,53 @@ function getRecommendations() {
   }
   const selectedId = Number.parseInt(selectedVal, 10);
 
-  // Step 2: find liked movie
   const likedMovie = movies.find((m) => m.id === selectedId);
   if (!likedMovie) {
     resultEl.innerText = 'Selected movie was not found. Please try another.';
     return;
   }
 
-  // Step 3: prepare genre sets and candidates
-  const likedSet = new Set(likedMovie.genres || []);
+  const metric = getSelectedMetric(); // 'cosine' | 'jaccard'
+
+  // Вектор жанров выбранного фильма
+  const likedVec = toGenreVector(likedMovie.genres);
+
+  // Кандидаты — все остальные фильмы
   const candidateMovies = movies.filter((m) => m.id !== likedMovie.id);
 
-  // Step 4: score by Jaccard similarity
+  // Выбираем функцию сходства
+  const simFn = metric === 'jaccard' ? jaccardSimilarity : cosineSimilarity;
+
+  // Считаем сходство
   const scoredMovies = candidateMovies.map((cand) => {
-    const candSet = new Set(cand.genres || []);
-
-    // Intersection size
-    let intersectCount = 0;
-    for (const g of likedSet) {
-      if (candSet.has(g)) intersectCount++;
-    }
-
-    // Union size = |A| + |B| - |A∩B|
-    const unionSize = likedSet.size + candSet.size - intersectCount;
-
-    // Handle edge-case: if both sets are empty, treat score as 0
-    const score = unionSize === 0 ? 0 : intersectCount / unionSize;
-
+    const candVec = toGenreVector(cand.genres);
+    const score = simFn(likedVec, candVec);
     return { ...cand, score };
   });
 
-  // Step 5: sort by score (desc), stable tie-breaker by title asc
+  // Сортировка: по сходству убыв., при равенстве — по алфавиту
   scoredMovies.sort((a, b) => {
     if (b.score !== a.score) return b.score - a.score;
     return a.title.localeCompare(b.title, undefined, { sensitivity: 'base' });
   });
 
-  // Step 6: top N (2 per spec)
   const topN = scoredMovies.slice(0, 2);
 
-  // Step 7: display result
   if (topN.length === 0) {
     resultEl.innerText = `We couldn't find any similar titles to "${likedMovie.title}". Try another movie.`;
   } else {
-    const recTitles = topN.map((x) => x.title).join(', ');
-    resultEl.innerText = `Because you liked "${likedMovie.title}", we recommend: ${recTitles}`;
+    // Формируем вывод
+    let listText;
+    if (metric === 'cosine') {
+      // Печатаем значения cosine similarity c тремя знаками после запятой
+      listText = topN
+        .map((x) => `${x.title} (cos: ${x.score.toFixed(3)})`)
+        .join(', ');
+    } else {
+      // Жаккар — оставим просто названия (можно тоже показать score, если захочешь)
+      listText = topN.map((x) => x.title).join(', ');
+    }
+
+    resultEl.innerText = `Because you liked "${likedMovie.title}", we recommend: ${listText}`;
   }
 }
