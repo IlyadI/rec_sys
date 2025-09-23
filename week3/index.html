@@ -1,36 +1,45 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Matrix Factorization Movie Recommender</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css" />
+  <!-- Load TensorFlow.js so we can train ML models directly in the browser -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
+  <!-- Load our dataset mock and training logic -->
+  <script src="data.js"></script>
+  <script src="script.js" defer></script>
 </head>
 <body>
   <div class="container">
-    <h1>🎬 Matrix Factorization Movie Recommender</h1>
-    <p>Select a user and a movie, then predict the rating.</p>
+    <header>
+      <h1>Matrix Factorization Movie Recommender</h1>
+      <p>Train a collaborative filtering model in your browser using TensorFlow.js</p>
+    </header>
 
-    <!-- Dropdown for users -->
-    <label for="user-select">User:</label>
-    <select id="user-select"></select>
+    <main>
+      <!-- Dropdown to select a user -->
+      <div class="form-group">
+        <label for="userSelect">Select User:</label>
+        <select id="userSelect"></select>
+      </div>
 
-    <!-- Dropdown for movies -->
-    <label for="movie-select">Movie:</label>
-    <select id="movie-select"></select>
+      <!-- Dropdown to select a movie -->
+      <div class="form-group">
+        <label for="movieSelect">Select Movie:</label>
+        <select id="movieSelect"></select>
+      </div>
 
-    <!-- Button triggers prediction -->
-    <button onclick="predictRating()">Predict Rating</button>
+      <!-- Button to trigger prediction, disabled until training is done -->
+      <button id="predictBtn" disabled>Predict Rating</button>
 
-    <!-- Result output -->
-    <div id="result">Model is loading and training... please wait.</div>
+      <!-- Status messages during training -->
+      <div id="trainingStatus" class="card info"></div>
+
+      <!-- Result of prediction (predicted rating) -->
+      <div id="result" class="card result"></div>
+    </main>
   </div>
-
-  <!-- Load TensorFlow.js library -->
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
-  <!-- Load dataset parsing logic -->
-  <script src="data.js"></script>
-  <!-- Load main model logic -->
-  <script src="script.js"></script>
 </body>
 </html>
-
