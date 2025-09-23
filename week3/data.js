@@ -1,53 +1,85 @@
-// ==========================
-// Data Loading & Parsing
-// ==========================
-
-// Global variables to store dataset
-let ratings = [];       // array of {userId, movieId, rating}
-let movies = {};        // mapping movieId -> title
+// Global variables to store parsed data
+let movies = [];
+let ratings = [];
 let numUsers = 0;
 let numMovies = 0;
 
-/**
- * Load and parse the MovieLens dataset (u.item, u.data).
- * Uses fetch() to retrieve files.
- */
+// Movie data structure: { id: number, title: string, year: number }
+// Rating data structure: { userId: number, movieId: number, rating: number }
+
 async function loadData() {
-  // Load movie metadata
-  const itemResponse = await fetch("https://raw.githubusercontent.com/grouplens/datasets/master/movielens/100k/u.item");
-  const itemText = await itemResponse.text();
-  parseItemData(itemText);
+    try {
+        // Load movie data
+        const movieResponse = await fetch('u.item');
+        const movieText = await movieResponse.text();
+        movies = parseItemData(movieText);
+        numMovies = movies.length;
 
-  // Load user ratings
-  const dataResponse = await fetch("https://raw.githubusercontent.com/grouplens/datasets/master/movielens/100k/u.data");
-  const dataText = await dataResponse.text();
-  parseRatingData(dataText);
+        // Load rating data
+        const ratingResponse = await fetch('u.data');
+        const ratingText = await ratingResponse.text();
+        ratings = parseRatingData(ratingText);
+        
+        // Calculate number of unique users
+        const uniqueUsers = new Set(ratings.map(r => r.userId));
+        numUsers = uniqueUsers.size;
 
-  console.log("Data loaded:", numUsers, "users,", numMovies, "movies,", ratings.length, "ratings");
+        console.log(`Loaded ${movies.length} movies and ${ratings.length} ratings from ${numUsers} users`);
+        
+        return { movies, ratings, numUsers, numMovies };
+    } catch (error) {
+        console.error('Error loading data:', error);
+        throw error;
+    }
 }
 
-/**
- * Parse u.item file (movieId | title | …).
- */
 function parseItemData(text) {
-  const lines = text.trim().split("\n");
-  lines.forEach(line => {
-    const parts = line.split("|");
-    const movieId = parseInt(parts[0]);
-    const title = parts[1];
-    movies[movieId] = title;
-  });
-  numMovies = Object.keys(movies).length;
+    const lines = text.split('\n');
+    const movieData = [];
+    
+    for (const line of lines) {
+        if (line.trim() === '') continue;
+        
+        const parts = line.split('|');
+        if (parts.length >= 2) {
+            const id = parseInt(parts[0]);
+            // Extract title and year from the title field (format: "Title (Year)")
+            const titleMatch = parts[1].match(/(.+)\s+\((\d{4})\)$/);
+            let title = parts[1];
+            let year = null;
+            
+            if (titleMatch) {
+                title = titleMatch[1].trim();
+                year = parseInt(titleMatch[2]);
+            }
+            
+            movieData.push({
+                id: id,
+                title: title,
+                year: year
+            });
+        }
+    }
+    
+    return movieData;
 }
 
-/**
- * Parse u.data file (userId, movieId, rating, timestamp).
- */
 function parseRatingData(text) {
-  const lines = text.trim().split("\n");
-  lines.forEach(line => {
-    const [userId, movieId, rating] = line.split("\t").map(Number);
-    ratings.push({ userId: userId - 1, movieId: movieId - 1, rating }); // shift IDs to start at 0
-    numUsers = Math.max(numUsers, userId);
-  });
+    const lines = text.split('\n');
+    const ratingData = [];
+    
+    for (const line of lines) {
+        if (line.trim() === '') continue;
+        
+        const parts = line.split('\t');
+        if (parts.length >= 3) {
+            ratingData.push({
+                userId: parseInt(parts[0]),
+                movieId: parseInt(parts[1]),
+                rating: parseFloat(parts[2])
+            });
+        }
+    }
+    
+    return ratingData;
 }
