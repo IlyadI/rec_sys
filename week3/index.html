@@ -1,1 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Matrix Factorization Movie Recommender</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <h1>🎬 Matrix Factorization Movie Recommender</h1>
+    <p>Select a user and a movie, then predict the rating.</p>
+
+    <!-- Dropdown for users -->
+    <label for="user-select">User:</label>
+    <select id="user-select"></select>
+
+    <!-- Dropdown for movies -->
+    <label for="movie-select">Movie:</label>
+    <select id="movie-select"></select>
+
+    <!-- Button triggers prediction -->
+    <button onclick="predictRating()">Predict Rating</button>
+
+    <!-- Result output -->
+    <div id="result">Model is loading and training... please wait.</div>
+  </div>
+
+  <!-- Load TensorFlow.js library -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+  <!-- Load dataset parsing logic -->
+  <script src="data.js"></script>
+  <!-- Load main model logic -->
+  <script src="script.js"></script>
+</body>
+</html>
 
