@@ -1,206 +1,270 @@
 // Global variables
-let model;
-let isTraining = false;
+let model = null;                    // TensorFlow.js model instance
+let isTraining = false;              // Flag to track training status
+let trainingStartTime = null;        // Track training start time
 
-// Initialize application when window loads
+/**
+ * Initialize the application when the window loads
+ * This is the main entry point that coordinates all functionality
+ */
 window.onload = async function() {
     try {
-        // Update status
-        updateStatus('Loading MovieLens data...');
+        updateResult('Loading MovieLens dataset...');
         
-        // Load data first
+        // Load and parse the dataset
         await loadData();
         
-        // Populate dropdowns
+        // Populate the dropdown menus with users and movies
         populateUserDropdown();
         populateMovieDropdown();
         
-        // Update status and start training
-        updateStatus('Data loaded. Training model...');
+        updateResult('Data loaded! Starting model training...');
         
-        // Train the model
+        // Start training the matrix factorization model
         await trainModel();
         
     } catch (error) {
         console.error('Initialization error:', error);
-        updateStatus('Error initializing application: ' + error.message, true);
+        updateResult(`Error: ${error.message}`);
     }
 };
 
+/**
+ * Populate the user dropdown with unique user IDs from the ratings data
+ */
 function populateUserDropdown() {
     const userSelect = document.getElementById('user-select');
-    userSelect.innerHTML = '';
+    userSelect.innerHTML = ''; // Clear loading message
     
-    // Add users (assuming user IDs are sequential from 1 to numUsers)
-    for (let i = 1; i <= numUsers; i++) {
+    // Get unique user IDs and sort them
+    const uniqueUserIds = [...new Set(ratings.map(r => r.userId))].sort((a, b) => a - b);
+    
+    // Create option elements for each user
+    uniqueUserIds.forEach(userId => {
         const option = document.createElement('option');
-        option.value = i;
-        option.textContent = `User ${i}`;
+        option.value = userId;
+        option.textContent = `User ${userId}`;
         userSelect.appendChild(option);
-    }
+    });
+    
+    console.log(`Populated user dropdown with ${uniqueUserIds.length} users`);
 }
 
+/**
+ * Populate the movie dropdown with movie titles from the movies data
+ */
 function populateMovieDropdown() {
     const movieSelect = document.getElementById('movie-select');
-    movieSelect.innerHTML = '';
+    movieSelect.innerHTML = ''; // Clear loading message
     
-    // Add movies
-    movies.forEach(movie => {
+    // Sort movies by title for better user experience
+    const sortedMovies = [...movies].sort((a, b) => a.title.localeCompare(b.title));
+    
+    // Create option elements for each movie
+    sortedMovies.forEach(movie => {
         const option = document.createElement('option');
         option.value = movie.id;
-        option.textContent = movie.year ? `${movie.title} (${movie.year})` : movie.title;
+        option.textContent = movie.title;
         movieSelect.appendChild(option);
     });
+    
+    console.log(`Populated movie dropdown with ${sortedMovies.length} movies`);
 }
 
+/**
+ * Create the Matrix Factorization model architecture
+ * This model learns latent factors for users and movies and predicts ratings via dot product
+ * @param {number} numUsers - Number of unique users in the dataset
+ * @param {number} numMovies - Number of unique movies in the dataset
+ * @param {number} latentDim - Dimension of the latent factor vectors (default: 10)
+ * @returns {tf.LayersModel} Compiled TensorFlow.js model
+ */
 function createModel(numUsers, numMovies, latentDim = 10) {
-    // User input
+    console.log(`Creating model with ${numUsers} users, ${numMovies} movies, latent dimension: ${latentDim}`);
+    
+    // Input layer for user IDs - shape [null, 1] for batch processing
     const userInput = tf.input({shape: [1], name: 'userInput'});
     
-    // Movie input  
+    // Input layer for movie IDs - shape [null, 1] for batch processing  
     const movieInput = tf.input({shape: [1], name: 'movieInput'});
     
-    // User embedding
+    // User embedding layer: maps user IDs to dense vectors in latent space
+    // Adding 1 to inputDim to account for 0-based indexing
     const userEmbedding = tf.layers.embedding({
         inputDim: numUsers + 1,
         outputDim: latentDim,
         name: 'userEmbedding'
     }).apply(userInput);
     
-    // Movie embedding
+    // Movie embedding layer: maps movie IDs to dense vectors in latent space
+    // Adding 1 to inputDim to account for 0-based indexing
     const movieEmbedding = tf.layers.embedding({
         inputDim: numMovies + 1,
-        outputDim: latentDim, 
+        outputDim: latentDim,
         name: 'movieEmbedding'
     }).apply(movieInput);
     
-    // Reshape embeddings to flatten them
+    // Flatten the embeddings from 2D to 1D tensors
     const userVector = tf.layers.flatten().apply(userEmbedding);
     const movieVector = tf.layers.flatten().apply(movieEmbedding);
     
-    // Dot product of user and movie vectors
+    // Compute dot product of user and movie vectors to get predicted rating
+    // This is the core matrix factorization operation: userVector • movieVector^T
     const dotProduct = tf.layers.dot({axes: 1}).apply([userVector, movieVector]);
     
-    // Reshape to get a single output value
-    const prediction = tf.layers.reshape({targetShape: [1]}).apply(dotProduct);
-    
-    // Create model
+    // Create the model with two inputs and one output
     const model = tf.model({
         inputs: [userInput, movieInput],
-        outputs: prediction
+        outputs: dotProduct
     });
     
+    console.log('Model architecture created successfully');
     return model;
 }
 
+/**
+ * Train the Matrix Factorization model using the loaded ratings data
+ * This function handles data preparation, model compilation, and training
+ */
 async function trainModel() {
+    if (isTraining) {
+        console.log('Model training already in progress');
+        return;
+    }
+    
     try {
         isTraining = true;
-        document.getElementById('predict-btn').disabled = true;
+        trainingStartTime = Date.now();
         
-        // Create model
-        model = createModel(numUsers, numMovies, 10);
+        updateResult('Creating model architecture...');
         
-        // Compile model
+        // Create the model with appropriate dimensions
+        // Using 15 latent factors for good representation without overfitting
+        model = createModel(numUsers, numMovies, 15);
+        
+        // Compile the model with appropriate optimizer and loss function
         model.compile({
-            optimizer: tf.train.adam(0.001),
-            loss: 'meanSquaredError'
+            optimizer: tf.train.adam(0.001), // Adam optimizer with learning rate 0.001
+            loss: 'meanSquaredError'         // MSE is standard for rating prediction
         });
         
-        // Prepare training data
-        const userIds = ratings.map(r => r.userId);
-        const movieIds = ratings.map(r => r.movieId);
-        const ratingValues = ratings.map(r => r.rating);
+        console.log('Model compiled, preparing training data...');
+        updateResult('Preparing training data...');
         
-        const userTensor = tf.tensor2d(userIds, [userIds.length, 1]);
-        const movieTensor = tf.tensor2d(movieIds, [movieIds.length, 1]);
-        const ratingTensor = tf.tensor2d(ratingValues, [ratingValues.length, 1]);
+        // Prepare training data: extract user IDs, movie IDs, and ratings
+        const userInputs = ratings.map(r => r.userId);
+        const movieInputs = ratings.map(r => r.movieId);
+        const ratingTargets = ratings.map(r => r.rating);
         
-        // Train model
-        updateStatus('Training model... (This may take a moment)');
+        // Convert JavaScript arrays to TensorFlow tensors
+        const userTensor = tf.tensor2d(userInputs, [userInputs.length, 1]);
+        const movieTensor = tf.tensor2d(movieInputs, [movieInputs.length, 1]);
+        const ratingTensor = tf.tensor2d(ratingTargets, [ratingTargets.length, 1]);
         
-        await model.fit([userTensor, movieTensor], ratingTensor, {
-            epochs: 10,
-            batchSize: 64,
-            validationSplit: 0.1,
-            callbacks: {
-                onEpochEnd: (epoch, logs) => {
-                    updateStatus(`Training epoch ${epoch + 1}/10 - loss: ${logs.loss.toFixed(4)}`);
+        console.log(`Training on ${ratings.length} ratings...`);
+        updateResult(`Training model on ${ratings.length} ratings...`);
+        
+        // Train the model - using 10 epochs for reasonable training time
+        const history = await model.fit(
+            [userTensor, movieTensor], // Inputs: user IDs and movie IDs
+            ratingTensor,              // Targets: actual ratings
+            {
+                epochs: 10,            // Number of training passes
+                batchSize: 64,         // Batch size for gradient updates
+                validationSplit: 0.1,  // Use 10% of data for validation
+                callbacks: {
+                    onEpochEnd: (epoch, logs) => {
+                        // Update UI with training progress
+                        const elapsed = ((Date.now() - trainingStartTime) / 1000).toFixed(1);
+                        updateResult(`Training epoch ${epoch + 1}/10 - Loss: ${logs.loss.toFixed(4)} - Time: ${elapsed}s`);
+                        console.log(`Epoch ${epoch + 1}, Loss: ${logs.loss}`);
+                    }
                 }
             }
-        });
+        );
         
-        // Clean up tensors
-        tf.dispose([userTensor, movieTensor, ratingTensor]);
+        // Clean up tensors to free memory
+        userTensor.dispose();
+        movieTensor.dispose();
+        ratingTensor.dispose();
         
-        // Update UI
-        updateStatus('Model training completed successfully!');
+        const trainingTime = ((Date.now() - trainingStartTime) / 1000).toFixed(1);
+        console.log(`Training completed in ${trainingTime} seconds`);
+        
+        // Enable prediction button and update UI
         document.getElementById('predict-btn').disabled = false;
-        isTraining = false;
+        updateResult(`Model trained successfully! Ready for predictions. Training time: ${trainingTime}s`);
         
     } catch (error) {
         console.error('Training error:', error);
-        updateStatus('Error training model: ' + error.message, true);
+        updateResult(`Training failed: ${error.message}`);
+    } finally {
         isTraining = false;
     }
 }
 
+/**
+ * Predict a user's rating for a selected movie using the trained model
+ * This function is called when the user clicks the "Predict Rating" button
+ */
 async function predictRating() {
-    if (isTraining) {
-        updateResult('Model is still training. Please wait...', 'medium');
-        return;
-    }
-    
-    const userId = parseInt(document.getElementById('user-select').value);
-    const movieId = parseInt(document.getElementById('movie-select').value);
-    
-    if (!userId || !movieId) {
-        updateResult('Please select both a user and a movie.', 'medium');
+    if (!model) {
+        updateResult('Model is not ready yet. Please wait for training to complete.');
         return;
     }
     
     try {
-        // Create input tensors
+        // Get selected user and movie from dropdowns
+        const userId = parseInt(document.getElementById('user-select').value);
+        const movieId = parseInt(document.getElementById('movie-select').value);
+        
+        if (!userId || !movieId) {
+            updateResult('Please select both a user and a movie.');
+            return;
+        }
+        
+        // Get movie title for display
+        const movie = movies.find(m => m.id === movieId);
+        const movieTitle = movie ? movie.title : `Movie ${movieId}`;
+        
+        updateResult(`Predicting rating for User ${userId} and "${movieTitle}"...`);
+        
+        // Create input tensors for prediction
+        // Shape: [1, 1] for single prediction
         const userTensor = tf.tensor2d([[userId]]);
         const movieTensor = tf.tensor2d([[movieId]]);
         
         // Make prediction
         const prediction = model.predict([userTensor, movieTensor]);
-        const rating = await prediction.data();
-        const predictedRating = rating[0];
+        const predictedRating = await prediction.data();
         
         // Clean up tensors
-        tf.dispose([userTensor, movieTensor, prediction]);
+        userTensor.dispose();
+        movieTensor.dispose();
+        prediction.dispose();
         
-        // Display result
-        const movie = movies.find(m => m.id === movieId);
-        const movieTitle = movie ? (movie.year ? `${movie.title} (${movie.year})` : movie.title) : `Movie ${movieId}`;
-        
-        let ratingClass = 'medium';
-        if (predictedRating >= 4) ratingClass = 'high';
-        else if (predictedRating <= 2) ratingClass = 'low';
+        // Display the result - ratings are typically 1-5 scale
+        const rating = predictedRating[0];
+        const displayRating = Math.min(Math.max(rating, 1), 5).toFixed(2); // Clamp to 1-5 range
         
         updateResult(
-            `Predicted rating for User ${userId} on "${movieTitle}": <strong>${predictedRating.toFixed(2)}/5</strong>`,
-            ratingClass
+            `Predicted rating for User ${userId} and "${movieTitle}": ` +
+            `<span class="prediction">${displayRating} / 5.00</span>`
         );
+        
+        console.log(`Prediction - User: ${userId}, Movie: ${movieId}, Rating: ${displayRating}`);
         
     } catch (error) {
         console.error('Prediction error:', error);
-        updateResult('Error making prediction: ' + error.message, 'low');
+        updateResult(`Prediction failed: ${error.message}`);
     }
 }
 
-// UI helper functions
-function updateStatus(message, isError = false) {
-    const statusElement = document.getElementById('status');
-    statusElement.textContent = message;
-    statusElement.style.borderLeftColor = isError ? '#e74c3c' : '#3498db';
-    statusElement.style.background = isError ? '#fdedec' : '#f8f9fa';
-}
-
-function updateResult(message, className = '') {
+/**
+ * Update the result display area with new message
+ * @param {string} message - HTML message to display
+ */
+function updateResult(message) {
     const resultElement = document.getElementById('result');
-    resultElement.innerHTML = message;
-    resultElement.className = `result ${className}`;
+    resultElement.innerHTML = `<p>${message}</p>`;
 }
