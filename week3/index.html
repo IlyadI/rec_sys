@@ -8,36 +8,33 @@
 </head>
 <body>
     <div class="container">
-        <header>
-            <h1>Matrix Factorization Movie Recommender</h1>
-            <p>Train a collaborative filtering model in your browser using TensorFlow.js</p>
-        </header>
+        <h1>🎬 Movie Recommender</h1>
+        <p class="subtitle">Using Matrix Factorization with TensorFlow.js</p>
         
-        <main>
-            <div class="controls">
-                <div class="input-group">
-                    <label for="user-select">Select User:</label>
-                    <select id="user-select">
-                        <option value="">Loading users...</option>
-                    </select>
-                </div>
-                
-                <div class="input-group">
-                    <label for="movie-select">Select Movie:</label>
-                    <select id="movie-select">
-                        <option value="">Loading movies...</option>
-                    </select>
-                </div>
-                
-                <button id="predict-btn" onclick="predictRating()" disabled>Predict Rating</button>
+        <div class="control-group">
+            <div class="input-group">
+                <label for="user-select">Select User:</label>
+                <select id="user-select">
+                    <option value="">Loading users...</option>
+                </select>
             </div>
             
-            <div id="status" class="status">Loading data and training model...</div>
-            <div id="result" class="result"></div>
-        </main>
+            <div class="input-group">
+                <label for="movie-select">Select Movie:</label>
+                <select id="movie-select">
+                    <option value="">Loading movies...</option>
+                </select>
+            </div>
+        </div>
+        
+        <button id="predict-btn" onclick="predictRating()" disabled>Predict Rating</button>
+        
+        <div id="result" class="result-area">
+            <p>Loading data and training model...</p>
+        </div>
     </div>
 
-    <!-- Load TensorFlow.js first, then our data module, then our main script -->
+    <!-- Load TensorFlow.js first, then our data module, then main script -->
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
     <script src="data.js"></script>
     <script src="script.js"></script>
